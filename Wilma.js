@@ -1,20 +1,32 @@
 const getToken = require("./lib/token");
 const getSchedule = require("./lib/schedule");
 const getMessages = require("./lib/message");
-const bent = require("bent");
+const setup = require("./lib/setup");
+const basedir = require("os").homedir() + "/.wilma/";
+const fs = require("fs");
 const colorize = require("./lib/colorize");
+const bent = require("bent");
 
 const command = process.argv[2];
-require("dotenv").config();
-const { WILMA_USER: user,
-        WILMA_PASS: pass,
-        WILMA_URL: wilma,
-        WILMA_SLUG: slug
-    } = process.env;
-
-
 
 (async()=>{
+    if(command == "setup") {
+        setup();
+        return;
+    }
+
+    if((!fs.existsSync(basedir) && !fs.existsSync(basedir + "creds.json"))) {
+        console.log(colorize("You have not ran the setup yet. Execute the setup command.", "error"));
+        return;
+    }
+
+    const {
+        user,
+        pass,
+        wilma,
+        slug
+    } = require(basedir + "creds.json");
+
     let token = null;
 
     try {
@@ -30,7 +42,7 @@ const { WILMA_USER: user,
 
     console.log(colorize("Successfully logged in.","success"));
 
-    let {Groups: groups, Exams: exams, Schedule: schedule} = await get("overview");
+    let {Groups: groups, Exams: exams} = await get("overview");
 
     switch(command) {
 
@@ -131,24 +143,37 @@ const { WILMA_USER: user,
             break;
 
         case 'messages':
-			//test
-			if (!process.argv[3]) {
-				console.log(colorize("Please give a page to display. E.g. messages 1.","warning"));
-				break;
-			}
+            if (!process.argv[3]) {
+                console.log(colorize("Please give a page to display. E.g. messages 1.","warning"));
+                break;
+            }
 
-			let messages = await getMessages("list", wilma, token, slug);
-			parsed = JSON.parse(messages);
-			let senders = []
-			Object.values(parsed.Messages).forEach((v,i)=>{
-				senders[i]=v.Sender;
-			})
-			const longestSender = Math.max(...senders.map(v=>v.length))
-			Object.values(parsed.Messages).forEach((v, i) => {
-				if (process.argv[3]*10>=i && process.argv[3]*10<=i+10) {
-					console.log(colorize(i +': ' + ' '.repeat(3-i.toString().length)  + v.Sender + ' '.repeat(longestSender-v.Sender.length) + v.TimeStamp,"title") +colorize(' | ',"border") + colorize(v.Subject,"text"));
-				}
-			});
+            let messages = await getMessages("list", wilma, token, slug);
+            parsed = JSON.parse(messages);
+            let senders = [];
+            Object.values(parsed.Messages).forEach((v,i) => {
+                senders[i] = v.Sender;
+            })
+            const longestSender = Math.max(...senders.map(v => v.length));
+            Object.values(parsed.Messages).forEach((v, i) => {
+                if (process.argv[3] * 10 >= i && process.argv[3] * 10 <= i + 10) {
+                    console.log(colorize(i + ': ' + ' '.repeat(3-i.toString().length) + v.Sender + ' '.repeat(longestSender-v.Sender.length) + v.TimeStamp,"title") + colorize(' | ',"border") + colorize(v.Subject,"text"));
+                }
+            });
+            break;
+
+        case 'message':
+            if (!process.argv[3]) {
+                console.log(colorize("Please give a message number to display. E.g. message 1.","warning"));
+                break;
+            }
+            let messaged = await getMessages("list", wilma, token, slug);
+            parsed = JSON.parse(messaged);
+            let messageInfo = parsed.Messages[process.argv[3]];
+            let message = await getMessages(messageInfo.Id, wilma, token, slug);
+            let filtered = message.substring(message.search('<div class="ckeditor hidden">'), message.search('<div class="no-side-padding overflow-scrolling">')).replace(/<[^>]+>/g, '');
+            console.log(colorize('From: ' + messageInfo.Sender + '  At: ' + messageInfo.TimeStamp + '\n\n',"title"));
+            console.log(colorize('          ' + filtered.replace(/&auml;/g,'ä').replace(/&ouml;/g,'ö').replace(/&nbsp;/g,'').replace(/\n/g,'\n          '),"text"));
             break;
 
 		case 'message':
@@ -183,11 +208,18 @@ const { WILMA_USER: user,
             break;
 
         case 'help':
-            console.log(colorize("Valid commands are:\n- homework        | homework from the last 7 days\n- courses         | your courses\n- schedule        | schedule for this week\n- messages <page> | all messages\n- message <number>|Read message\n- exams           | coming exams","text"));
+            console.log(colorize("Valid commands are:\n" +
+                                 "- setup            | setup the client\n" +
+                                 "- homework         | homework from the last 7 days\n" +
+                                 "- courses          | your courses\n" +
+                                 "- schedule         | schedule for this week\n" +
+                                 "- messages <page>  | all messages\n" +
+                                 "- message <number> | Read message\n" +
+                                 "- exams            | coming exams","text"));
             break;
 
         default:
-            console.log(colorize("Not a valid command. Do \"node . help\""));
+            console.log(colorize("Not a valid command. Use the \"help\" command!", "warning"));
     }
 
 })();
