@@ -137,9 +137,6 @@ const command = process.argv[2];
 
                 console.log(colorize("+" + "-".repeat(longestTime+2) + "+" + ("-".repeat(longestLineLength)+"+").repeat(5),"border"))
             }
-            // subcommand to get extra info from a lesson with like
-            // node . schedule b3
-            // tells more info for tuesdays third lesson
             break;
 
         case 'messages':
@@ -150,6 +147,12 @@ const command = process.argv[2];
 
             let messages = await getMessages("list", wilma, token, slug);
             parsed = JSON.parse(messages);
+
+            if(parseInt(process.argv[3]) < 1 || process.argv[3] > Math.ceil(parsed.Messages.length/10)) {
+                console.log(colorize("That page doesnt exists.", "warning"))
+                break;
+            }
+
             let senders = [];
             Object.values(parsed.Messages).forEach((v,i) => {
                 senders[i] = v.Sender;
@@ -167,8 +170,15 @@ const command = process.argv[2];
                 console.log(colorize("Please give a message number to display. E.g. message 1.","warning"));
                 break;
             }
+
             let messaged = await getMessages("list", wilma, token, slug);
             parsed = JSON.parse(messaged);
+
+            if(parseInt(process.argv[3]) < 0 || process.argv[3] > parsed.Messages.length - 1) {
+                console.log(colorize("There's no messages with that number.", "warning"))
+                break;
+            }
+
             let messageInfo = parsed.Messages[process.argv[3]];
             let message = await getMessages(messageInfo.Id, wilma, token, slug);
             let filtered = message.substring(message.search('<div class="ckeditor hidden">'), message.search('<div class="no-side-padding overflow-scrolling">')).replace(/<[^>]+>/g, '');
@@ -215,7 +225,7 @@ const command = process.argv[2];
                                  "- schedule         | schedule for this week\n" +
                                  "- messages <page>  | all messages\n" +
                                  "- message <number> | Read message\n" +
-                                 "- exams            | coming exams","text"));
+                                 "- exams            | coming exams", "text"));
             break;
 
         default:
